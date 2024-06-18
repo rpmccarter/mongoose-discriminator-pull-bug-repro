@@ -56,9 +56,11 @@ let user: User | null = await User.create({
 
 console.log(user);
 
+const id = '123-456';
+const publicKey = 'AAA';
 user = await User.findOneAndUpdate(
   { _id: user._id, 'login.type': 'ssh-key' },
-  { $push: { 'login.keys': { id: '123', publicKey: 'AAA' } } },
+  { $push: { 'login.keys': { id, publicKey } } },
   { new: true }
 );
 
@@ -74,11 +76,15 @@ console.log(user);
 // does not work
 user = await User.findOneAndUpdate(
   { _id: user?._id, 'login.type': 'ssh-key' },
-  { $pull: { 'login.keys': { id: '123' } } },
+  { $pull: { 'login.keys': { id } } },
   { new: true }
 );
 
 console.log(user);
+
+if (user && user.login.keys.length > 0) {
+  throw new Error('should have deleted the key');
+}
 
 // MARK: cleanup
 await mongoose.disconnect();
