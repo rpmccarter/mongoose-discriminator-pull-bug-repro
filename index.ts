@@ -49,26 +49,36 @@ UserSchema.path<Schema.Types.Subdocument>('login').discriminator(
 const User = mongoose.model<User>('User', UserSchema, 'users');
 
 // MARK: bug repro
-const user = await User.create({
+let user: User | null = await User.create({
   name: 'foo',
-  login: {
-    type: 'ssh-key',
-    keys: [{
-      id: '123',
-      publicKey: 'AAA',
-    }],
-  },
+  login: { type: 'ssh-key' },
 });
 
 console.log(user);
 
-await User.findOneAndUpdate(
+user = await User.findOneAndUpdate(
   { _id: user._id, 'login.type': 'ssh-key' },
-  { $pull: { 'login.keys': { id: '123' } } }
+  { $push: { 'login.keys': { id: '123', publicKey: 'AAA' } } },
+  { new: true }
 );
 
-const updatedUser = await User.findById(user._id);
-console.log(updatedUser);
+console.log(user);
+
+// works fine
+// user = await User.findOneAndUpdate(
+//   { _id: user?._id, 'login.type': 'ssh-key' },
+//   { $set: { 'login.keys': [] } },
+//   { new: true }
+// );
+
+// does not work
+user = await User.findOneAndUpdate(
+  { _id: user?._id, 'login.type': 'ssh-key' },
+  { $pull: { 'login.keys': { id: '123' } } },
+  { new: true }
+);
+
+console.log(user);
 
 // MARK: cleanup
 await mongoose.disconnect();
