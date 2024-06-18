@@ -7,30 +7,40 @@ await mongoose.connect(mongoServer.getUri());
 mongoose.set({ debug: true });
 
 // MARK: create model
-type AddressInfo = {
-  type: 'po-box';
-  boxNumber: number;
-  lastEmptied?: number;
+type KeyInfo = {
+  id: string;
+  publicKey: string;
+}
+
+type LoginInfo = {
+  type: 'ssh-key';
+  keys: KeyInfo[];
 };
+
 
 type User = {
   _id: Types.ObjectId;
   name: string;
-  address: AddressInfo;
+  login: LoginInfo;
 };
 
-const AddressSchema = new Schema({ invalidatedAt: Number }, { discriminatorKey: 'type', _id: false });
+const LoginSchema = new Schema({}, { discriminatorKey: 'type', _id: false });
 const UserSchema = new Schema({
   name: String,
-  address: AddressSchema,
+  login: LoginSchema,
 });
 
-UserSchema.path<Schema.Types.Subdocument>('address').discriminator(
-  'po-box',
+UserSchema.path<Schema.Types.Subdocument>('login').discriminator(
+  'ssh-key',
   new Schema(
     {
-      boxNumber: { type: Number, required: true },
-      lastEmptied: Number,
+      keys: {
+        type: [{
+          id: { type: String, required: true },
+          publicKey: { type: String, required: true }
+        }],
+        default: [],
+      }
     },
     { _id: false }
   )
@@ -41,16 +51,21 @@ const User = mongoose.model<User>('User', UserSchema, 'users');
 // MARK: bug repro
 const user = await User.create({
   name: 'foo',
-  address: {
-    type: 'po-box',
-    boxNumber: 123,
+  login: {
+    type: 'ssh-key',
+    keys: [{
+      id: '123',
+      publicKey: 'AAA',
+    }],
   },
 });
 
 console.log(user);
 
-await User.findByIdAndUpdate(user._id, { $set: { 'name': 'bar' } }); // works fine
-await User.findByIdAndUpdate(user._id, { $set: { 'address.lastEmptied': 123 } }); // does not work
+await User.findOneAndUpdate(
+  { _id: user._id, 'login.type': 'ssh-key' },
+  { $pull: { 'login.keys': { id: '123' } } }
+);
 
 const updatedUser = await User.findById(user._id);
 console.log(updatedUser);
